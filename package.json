@@ -1,0 +1,15 @@
+{
+  "name": "push-release",
+  "version": "0.1.0",
+  "description": "Web service to push a new release onto the chain",
+  "author": "Parity Technologies <admin@parity.io>",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@parity/parity.js": "^0.2.120",
+    "express": "^4.13.3",
+    "request": "^2.79.0"
+  }
+}
