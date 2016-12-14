@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@parity/parity.js": "^0.2.120",
+    "body-parser": "^1.15.2",
     "express": "^4.13.3",
     "request": "^2.79.0"
   }

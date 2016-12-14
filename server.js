@@ -18,8 +18,31 @@ const tracks = {
 	testing: 4
 };
 
+const accounts = {
+	ropsten: {address: '0x4d6Bb4ed029B33cF25D0810b029bd8B1A6bcAb7B', password: 'password'},
+	mainnet: {address: '0x3FF047E5E803e20f5eF55eA1029aDB89618047Db', password: ''}
+};
+
 let track = 'nightly';
 let network = 'ropsten'; //<<< switch to 'mainnet' when we're ready to deploy.
+
+/*function sendTransaction(abi, address, method, args) {
+	let o = api.newContract(abi, address);
+	return api.personal.signAndSendTransaction({
+		from: accounts[network].address,
+		to: address,
+		data: o.getCallData(o.instance[method], {}, args)
+	}, accounts[network].password)
+}
+*/
+function sendTransaction(abi, address, method, args) {
+	let o = api.newContract(abi, address);
+	return api.parity.postTransaction({
+		from: accounts[network].address,
+		to: address,
+		data: o.getCallData(o.instance[method], {}, args)
+	});
+}
 
 app.post('/push-release/:branch/:commit', function (req, res) {
 	if (req.body.secret != 'theyreevencomingfromgdansktoseethefilm')
@@ -30,7 +53,7 @@ app.post('/push-release/:branch/:commit', function (req, res) {
 	let commit = req.params.commit;
 	let isCritical = false;		// TODO: should take from Git release notes for stable/beta.
 
-	let out = `RELEASE(${secret}): ${branch}/${commit}`;
+	let out = `RELEASE: ${branch}/${commit}`;
 	console.log(out);
 
 	request.get({headers: { 'User-Agent': 'ethcore/parity' }, url: `https://raw.githubusercontent.com/ethcore/parity/${commit}/ethcore/src/ethereum/mod.rs`}, function (error, response, body) {
@@ -45,7 +68,10 @@ app.post('/push-release/:branch/:commit', function (req, res) {
 				api.newContract(RegistrarABI, a).instance.getAddress.call({}, [api.util.sha3('operations'), 'A'])
 			).then(a => { 
 				console.log(`Registering release: 0x000000000000000000000000${commit}, ${forkSupported}, ${tracks[track]}, ${semver}, ${isCritical}`);
-				api.newContract(OperationsABI, a).instance.addRelease.postTransaction({}, [`0x000000000000000000000000${commit}`])
+				// Should be this...
+//				api.newContract(OperationsABI, a).instance.addRelease.postTransaction({from: accounts[network].address}, [`0x000000000000000000000000${commit}`])
+				// ...but will have to be this for now...
+				return sendTransaction(OperationsABI, a, 'addRelease', [`0x000000000000000000000000${commit}`, forkSupported, tracks[track], semver, isCritical]);
 			})
 		})
 	})
@@ -53,6 +79,8 @@ app.post('/push-release/:branch/:commit', function (req, res) {
 	res.end(out);
 })
 
+//curl --data "secret=theyreevencomingfromgdansktoseethefilm&commit=aaf6d59bda56dd2910f0c0d26c5c0a5b533c0d09&sha3=295b7ecc33dc76a7a0dd517b40fcd9285ec39de4c153e5a231f317fde8e6567f&filename=parity" http://localhost:8000/push-build/check-updates/x86_64-unknown-linux-gnu
+//BUILD(theyreevencomingfromgdansktoseethefilm): check-updates/x86_64-unknown-linux-gnu -> aaf6d59bda56dd2910f0c0d26c5c0a5b533c0d09/295b7ecc33dc76a7a0dd517b40fcd9285ec39de4c153e5a231f317fde8e6567f/parity
 app.post('/push-build/:branch/:platform', function (req, res) {
 	if (req.body.secret != 'theyreevencomingfromgdansktoseethefilm')
 		res.end("Bad request.");
@@ -65,21 +93,27 @@ app.post('/push-build/:branch/:platform', function (req, res) {
 	let track = tracks[branch] ? branch : 'testing';
 	let url = `http://d1h4xl4cr1h0mo.cloudfront.net/${branch}/${platform}/${filename}`;
 
-	let out = `BUILD(${secret}): ${branch}/${platform}/${commit} -> ${sha3}/${filename} [${url}/${track}]`;
+	let out = `BUILD: ${branch}/${platform}/${commit} -> ${sha3}/${filename} [${url}, ${track}]`;
 	console.log(out);
 
+	var reg;
 	api.parity.registryAddress().then(a => {
 		reg = api.newContract(RegistrarABI, a);
-		return Promise.all([
-			reg.instance.getAddress.call({}, [api.util.sha3('githubhint'), 'A']),
-			reg.instance.getAddress.call({}, [api.util.sha3('operations'), 'A'])
-		]);
-	}).then(([g, o])  => { 
+		return reg.instance.getAddress.call({}, [api.util.sha3('githubhint'), 'A']);
+	}).then(g => { 
 		console.log(`Registering on GithubHint: ${sha3}, ${url}`);
-		api.newContract(GitHubHintABI, g).instance.hintURL.postTransaction({}, [`0x${sha3}`, url]).then(() => {
-			console.log(`Registering platform binary: ${commit}, ${platform}, ${sha3}`);
-			api.newContract(OperationsABI, o).instance.addChecksum.postTransaction({}, [`0x000000000000000000000000${commit}`, platform, `0x${sha3}`])
-		});
+		// Should be this...
+//		api.newContract(GitHubHintABI, g).instance.hintURL.postTransaction({from: accounts[network].address}, [`0x${sha3}`, url]).then(() => {
+		// ...but will have to be this for now...
+		return sendTransaction(GitHubHintABI, g, 'hintURL', [`0x${sha3}`, url]);
+	}).then(() =>
+		reg.instance.getAddress.call({}, [api.util.sha3('operations'), 'A'])
+	).then(o => {
+		console.log(`Registering platform binary: ${commit}, ${platform}, ${sha3}`);
+		// Should be this...
+//		return api.newContract(OperationsABI, o).instance.addChecksum.postTransaction({from: accounts[network].address}, [`0x000000000000000000000000${commit}`, platform, `0x${sha3}`]);
+		// ...but will have to be this for now...
+		return sendTransaction(OperationsABI, o, 'addChecksum', [`0x000000000000000000000000${commit}`, platform, `0x${sha3}`]);
 	})
 
 	res.end(out);
