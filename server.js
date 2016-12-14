@@ -69,7 +69,7 @@ app.post('/push-release/:branch/:commit', function (req, res) {
 			).then(a => { 
 				console.log(`Registering release: 0x000000000000000000000000${commit}, ${forkSupported}, ${tracks[track]}, ${semver}, ${isCritical}`);
 				// Should be this...
-//				api.newContract(OperationsABI, a).instance.addRelease.postTransaction({from: accounts[network].address}, [`0x000000000000000000000000${commit}`])
+//				api.newContract(OperationsABI, a).instance.addRelease.postTransaction({from: accounts[network].address}, [`0x000000000000000000000000${commit}`, forkSupported, tracks[track], semver, isCritical])
 				// ...but will have to be this for now...
 				return sendTransaction(OperationsABI, a, 'addRelease', [`0x000000000000000000000000${commit}`, forkSupported, tracks[track], semver, isCritical]);
 			})
