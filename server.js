@@ -6,6 +6,7 @@ const api = new Parity.Api(transport);
 var request = require('request');
 var express = require('express');
 var bodyParser = require('body-parser');
+var keccak_256 = require('js-sha3').keccak_256;
 
 var app = express();
 app.use(bodyParser.urlencoded({extended:true}));
@@ -23,6 +24,7 @@ const accounts = {
 	mainnet: {address: '0x3FF047E5E803e20f5eF55eA1029aDB89618047Db', password: ''}
 };
 
+let tokenHash = '06da8709f9703052ece19a5acafbe3dc11ca1e88d4b7a8601076e3c6feb648c1';
 let track = 'nightly';
 let network = 'ropsten'; //<<< switch to 'mainnet' when we're ready to deploy.
 
@@ -45,7 +47,7 @@ function sendTransaction(abi, address, method, args) {
 }
 
 app.post('/push-release/:branch/:commit', function (req, res) {
-	if (req.body.secret != 'theyreevencomingfromgdansktoseethefilm')
+	if (keccak_256(req.body.secret) != tokenHash)
 		res.end("Bad request.");
 
 	let branch = req.params.branch;
@@ -82,7 +84,7 @@ app.post('/push-release/:branch/:commit', function (req, res) {
 //curl --data "secret=theyreevencomingfromgdansktoseethefilm&commit=aaf6d59bda56dd2910f0c0d26c5c0a5b533c0d09&sha3=295b7ecc33dc76a7a0dd517b40fcd9285ec39de4c153e5a231f317fde8e6567f&filename=parity" http://localhost:8000/push-build/check-updates/x86_64-unknown-linux-gnu
 //BUILD(theyreevencomingfromgdansktoseethefilm): check-updates/x86_64-unknown-linux-gnu -> aaf6d59bda56dd2910f0c0d26c5c0a5b533c0d09/295b7ecc33dc76a7a0dd517b40fcd9285ec39de4c153e5a231f317fde8e6567f/parity
 app.post('/push-build/:branch/:platform', function (req, res) {
-	if (req.body.secret != 'theyreevencomingfromgdansktoseethefilm')
+	if (keccak_256(req.body.secret) != tokenHash)
 		res.end("Bad request.");
 
 	let branch = req.params.branch;
