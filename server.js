@@ -20,7 +20,7 @@ const tracks = {
 };
 
 const accounts = {
-	ropsten: {address: '0x4d6Bb4ed029B33cF25D0810b029bd8B1A6bcAb7B', password: 'password'},
+	ropsten: {address: '0x4d6Bb4ed029B33cF25D0810b029bd8B1A6bcAb7B', password: ''},
 	mainnet: {address: '0x3FF047E5E803e20f5eF55eA1029aDB89618047Db', password: ''}
 };
 
@@ -30,12 +30,22 @@ let network = 'ropsten'; //<<< switch to 'mainnet' when we're ready to deploy.
 
 function sendTransaction(abi, address, method, args) {
 	let o = api.newContract(abi, address);
+	return api.personal.sendTransaction({
+		from: accounts[network].address,
+		to: address,
+		data: o.getCallData(o.instance[method], {}, args)
+	})
+}
+/*
+function sendTransaction(abi, address, method, args) {
+	let o = api.newContract(abi, address);
 	return api.personal.signAndSendTransaction({
 		from: accounts[network].address,
 		to: address,
 		data: o.getCallData(o.instance[method], {}, args)
 	}, accounts[network].password)
 }
+*/
 /*
 function sendTransaction(abi, address, method, args) {
 	let o = api.newContract(abi, address);
