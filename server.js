@@ -30,7 +30,7 @@ let network = 'ropsten'; //<<< switch to 'mainnet' when we're ready to deploy.
 
 function sendTransaction(abi, address, method, args) {
 	let o = api.newContract(abi, address);
-	return api.personal.sendTransaction({
+	return api.eth.sendTransaction({
 		from: accounts[network].address,
 		to: address,
 		data: o.getCallData(o.instance[method], {}, args)
