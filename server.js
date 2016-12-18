@@ -74,7 +74,7 @@ app.post('/push-release/:branch/:commit', function (req, res) {
 
 		request.get({headers: { 'User-Agent': 'ethcore/parity' }, url: `https://raw.githubusercontent.com/ethcore/parity/${commit}/Cargo.toml`}, function (error, response, body) {
 			let version = body.match(/version = "([0-9]+)\.([0-9]+)\.([0-9]+)"/).slice(1);
-			let semver = version[0] * 65536 + version[1] * 256 + version[2];
+			let semver = +version[0] * 65536 + +version[1] * 256 + +version[2];
 
 			api.parity.registryAddress().then(a =>
 				api.newContract(RegistrarABI, a).instance.getAddress.call({}, [api.util.sha3('operations'), 'A'])
