@@ -1,7 +1,7 @@
 # push-release
 ## Push Parity releases to the chain
 
-This is a PM2 node.js service which accepts simple RESTful-compliant HTTP requests as a trigger for updating an on-chain `Operations` contract with a new release.
+This is a PM2 node.js service which accepts simple RESTful-compliant HTTP requests as a trigger for updating an on-chain _Operations_ contract with a new release. It effectively provides a proxy for turning secret-authenticated RESTful requests into transactions sent to a chain's _Operations_ contract.
 
 ## Specification
 
@@ -73,3 +73,55 @@ We assume you have a preselected _signing account_ and _secret token_. The _Oper
    pm2 start --name parity ../run-parity.sh
    pm2 start push-release.json
    ```
+   
+
+## On-chain setup
+
+Prior to setting up the server, it's important to deploy the contracts and have the accounts and keys set up. If you already have a functional _Operations_ contract and _master key_ then you can skip down to "Setting up Parity's OperationsProxy contract". This all assumes you are working from Parity Wallet.
+
+10. Create the _master key_. This is the key which owns the _Operations_ contract and should be kept in cold storage. Accounts -> New Account; write down the recovery phrase (and put it somewhere safe), and name the key _master key_. Back up the new JSON file.
+
+15. Transfer some ether into the _master key_ (Transfer button on an existing funded account).
+
+20. Deploy the _Operations_ contract:
+   - Contracts -> Develop Contract
+   - Paste contents of [_Operations_ contract](https://github.com/ethcore/contracts/blob/master/Operations.sol)
+   - Compile
+   - Deploy (From Account: `master key`, Contract Name: Operations)
+
+30. Register _Operations_ contract in Registry:
+   - Applications -> Registry
+   - Select account _master key_ in top right
+   - Manage names -> name: _operations_, _reserve this name_ -> Reserve
+   - Provide password and wait until confirmed
+   - Manage entries of a name -> name: _operations_, _A - Ethereum address_, value: [_Operations_ contract's address] -> Save    - Provide password and wait until confirmed
+   
+35. Setting up Parity's _OperationsProxy_ contract:
+
+40. Create the _manual key_. This is the key which generally stays offline, but can be used to confirm stable and beta releases. Accounts -> New Account; write down the recovery phrase (and put it somewhere safe), and name the key _manual key_. Back up the new JSON file.
+
+50. Create the _server key_. This is the key which our newly provisioned server uses to push stable, beta and nightly releases (however, all but the latter need to be confirmed manually). Accounts -> New Account; write down the recovery phrase (and put it somewhere safe), and name the key _manual key_. Back up the new JSON file.
+
+60. Transfer some ether into these two accounts (Transfer button on an existing funded account).
+
+70. Deploy the Parity-specific _OperationsProxy_ contract:
+   - Contracts -> Develop Contract
+   - Paste contents of [_OperationsProxy_ contract](https://github.com/ethcore/contracts/blob/master/OperationsProxy.sol)
+   - Compile
+   - Deploy
+      - From Account: _master key_
+      - Contract Name: OperationsProxy
+      - owner: _master key_
+      - stable: _manual key_
+      - beta: _manual key_
+      - nightly: _server key_
+
+80. Register Parity's _OperationsProxy_ contract in Registry:
+   - Applications -> Registry
+   - Select account _master key_ in top right
+   - Manage names -> name: _parityoperations_, _reserve this name_ -> Reserve
+   - Provide password and wait until confirmed
+   - Manage entries of a name -> name: _parityoperations_, _A - Ethereum address_, value: [_OperationsProxy_ contract's address] -> Save
+   - Provide password and wait until confirmed
+
+90. 
