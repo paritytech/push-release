@@ -124,4 +124,22 @@ Prior to setting up the server, it's important to deploy the contracts and have 
    - Manage entries of a name -> name: _parityoperations_, _A - Ethereum address_, value: [_OperationsProxy_ contract's address] -> Save
    - Provide password and wait until confirmed
 
-90. 
+At this point, the CI may use two requests, given here as `curl` commands:
+
+When a new release has been made (but before builds are known) use:
+
+```
+curl --data "secret=$SECRET" http://update-server.parity.io:1337/push-release/$BRANCH/$COMMIT
+```
+
+Ensure that `$COMMIT` (the Git commit hash, 40-character hex) and `$BRANCH` (the release branch name) are set properly from the CI's environment.
+
+When a build is confirmed for a new release, you should use:
+
+```
+curl --data "commit=$COMMIT&sha3=$SHA3&filename=$FILENAME&secret=$SECRET" http://update-server.parity.io:1337/push-build/$BRANCH/$PLATFORM
+```
+
+Ensure that `$COMMIT` (the Git commit hash, 40-character hex), `$SHA3` (the build binary's Keccak-256 hash, 64-character hex), `$BRANCH` (the release branch name), `$FILENAME` (the filename of the build's binary in the build artefact's path) and `$PLATFORM` (the host platform for this build) are set according to the release from the CI's environment.
+
+In both cases, `$SECRET` should be the _secret token_. 
