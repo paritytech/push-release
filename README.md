@@ -115,10 +115,11 @@ Prior to setting up the server, it's important to deploy the contracts and have 
       - stable: _server key_
       - beta: _server key_
       - nightly: _server key_
-      - stableConfirmer: manual key_
+      - stableConfirmer: _manual key_
       - betaConfirmer: _manual key_
       - nightlyConfirmer: `<null>`
       - e.g.: ![image](https://cloud.githubusercontent.com/assets/138296/21752102/274eb584-d5d3-11e6-8d83-822c1ea4f5bb.png)
+   - Deploy, provide password and wait until confirmed.
 
 80. Register Parity's _OperationsProxy_ contract in Registry:
    - Applications -> Registry
@@ -129,7 +130,13 @@ Prior to setting up the server, it's important to deploy the contracts and have 
    - Provide password and wait until confirmed
    
 90. Configure Parity's _OperationsProxy_ to be the maintainer of Parity client releases in `Operations`:
-   - Contracts -> Operations -> 
+   - Contracts -> Operations -> Execute
+   - from account: _master key_
+   - function to execute: setClientOwner
+   - newOwner: _parity operations_ (the contract address)
+   - Execute
+   - Provide password and wait until confirmed
+
    
 ## Final usage
 
