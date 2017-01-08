@@ -88,6 +88,7 @@ Prior to setting up the server, it's important to deploy the contracts and have 
    - Paste contents of [_Operations_ contract](https://github.com/ethcore/contracts/blob/master/Operations.sol)
    - Compile
    - Deploy (From Account: `master key`, Contract Name: Operations)
+   - Create, provide password and wait until confirmed.
 
 30. Register _Operations_ contract in Registry:
    - Applications -> Registry
@@ -119,7 +120,7 @@ Prior to setting up the server, it's important to deploy the contracts and have 
       - betaConfirmer: _manual key_
       - nightlyConfirmer: `<null>`
       - e.g.: ![image](https://cloud.githubusercontent.com/assets/138296/21752102/274eb584-d5d3-11e6-8d83-822c1ea4f5bb.png)
-   - Deploy, provide password and wait until confirmed.
+   - Create, provide password and wait until confirmed.
 
 80. Register Parity's _OperationsProxy_ contract in Registry:
    - Applications -> Registry
@@ -134,8 +135,7 @@ Prior to setting up the server, it's important to deploy the contracts and have 
    - from account: _master key_
    - function to execute: setClientOwner
    - newOwner: _parity operations_ (the contract address)
-   - Execute
-   - Provide password and wait until confirmed
+   - Execute, provide password and wait until confirmed
 
    
 ## Final usage
