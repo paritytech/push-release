@@ -112,9 +112,13 @@ Prior to setting up the server, it's important to deploy the contracts and have 
       - From Account: _master key_
       - Contract Name: OperationsProxy
       - owner: _master key_
-      - stable: _manual key_
-      - beta: _manual key_
+      - stable: _server key_
+      - beta: _server key_
       - nightly: _server key_
+      - stableConfirmer: manual key_
+      - betaConfirmer: _manual key_
+      - nightlyConfirmer: `<null>`
+      - e.g.: ![image](https://cloud.githubusercontent.com/assets/138296/21752102/274eb584-d5d3-11e6-8d83-822c1ea4f5bb.png)
 
 80. Register Parity's _OperationsProxy_ contract in Registry:
    - Applications -> Registry
@@ -123,8 +127,13 @@ Prior to setting up the server, it's important to deploy the contracts and have 
    - Provide password and wait until confirmed
    - Manage entries of a name -> name: _parityoperations_, _A - Ethereum address_, value: [_OperationsProxy_ contract's address] -> Save
    - Provide password and wait until confirmed
+   
+90. Configure Parity's _OperationsProxy_ to be the maintainer of Parity client releases in `Operations`:
+   - Contracts -> Operations -> 
+   
+## Final usage
 
-At this point, the CI may use two requests, given here as `curl` commands:
+We assume this is set up on server resolving from `update-server.parity.io`. At this point, the CI may use two requests, given here as `curl` commands:
 
 When a new release has been made (but before builds are known) use:
 
@@ -142,4 +151,6 @@ curl --data "commit=$COMMIT&sha3=$SHA3&filename=$FILENAME&secret=$SECRET" http:/
 
 Ensure that `$COMMIT` (the Git commit hash, 40-character hex), `$SHA3` (the build binary's Keccak-256 hash, 64-character hex), `$BRANCH` (the release branch name), `$FILENAME` (the filename of the build's binary in the build artefact's path) and `$PLATFORM` (the host platform for this build) are set according to the release from the CI's environment.
 
-In both cases, `$SECRET` should be the _secret token_. 
+In both cases, `$SECRET` should be the _secret token_.
+
+Under this configuration, when stable and beta builds are made, they will require confirming through the _manual key_ prior to becoming active. At present there is no way of doing this except manually checking the events on the `OperationsProxy` contract and issuing the according `confirm` transactions from _manual key_ account.
