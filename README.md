@@ -7,12 +7,14 @@ This is a PM2 node.js service which accepts simple RESTful-compliant HTTP reques
 
 The two requests it can act upon are both POSTs (with params passed as URL-encoded data) and are at:
 
-- `/push-release/<branch>/<commit>`: Pushes a the new release `commit` of `branch` . The `branch` should be one of `stable`, `beta`, `nightly` (equivalent to `master`) or `testing`. The `commit` should be the 40-digit hex-encoded Git commit hash of this release. A token must be supplied 
+- `/push-release/<branch>/<commit>`: Pushes a the new release `commit` of `branch` . The `branch` should be one of `stable`, `beta`, `nightly` (equivalent to `master`) or `testing`. The `commit` should be the 40-digit hex-encoded Git commit hash of this release.
 - `/push-build/<branch>/<platform>`: Pushes a single `platform`'s build of a release on `branch`. The `branch` is as above. The `platform` should be compliant according to `Operations` contract. The additional POST data is `commit` (as above), `filename` (the filename of the build in the build artefacts directory) and `sha3` (the hex-encoded Keccak-256 hash of the binary).
 
-To ensure only valid updates are processed, all requests must provide an authentication token. The Keccak-256 hash of this token is stored in this script and any authentication tyoken which is passed must be the pre-image of this hash. It should be passed as a 64-digit, hex-encoded POST parameter with key `secret`.
+To ensure only valid updates are processed, all requests must provide an authentication token. The Keccak-256 hash of this token is stored in this script and any authentication token which is passed must be the pre-image of this hash. It should be passed as a 64-digit, hex-encoded POST parameter with key `secret`.
 
 ### Options
+
+The file `server.js` has several `const` declared values at the top which are used as a crude configuration. They may be altered according to the deployment:
 
 - `account` The configuration for the account we use to post transactions. Should contain at most two keys: `address` and optionally `password`. If no password is supplied, it is assumed that the account is already unlocked.
 - `baseUrl` The URL for artifacts; it will be appended with branch, platform and the filename, separated by directory delimiters (`/`s).
