@@ -51,30 +51,35 @@ app.post('/push-release/:branch/:commit', function (req, res) {
 	if (keccak_256(req.body.secret) != tokenHash)
 		res.end("Bad request.");
 
-	let branch = req.params.branch;
-	let track = tracks[branch] ? branch : 'testing';
 	let commit = req.params.commit;
 	let isCritical = false;		// TODO: should take from Git release notes for stable/beta.
 
-	let out = `RELEASE: ${branch}/${commit}`;
-	console.log(out);
+	var out;
 
 	request.get({headers: { 'User-Agent': 'ethcore/parity' }, url: `https://raw.githubusercontent.com/ethcore/parity/${commit}/ethcore/src/ethereum/mod.rs`}, function (error, response, body) {
 
 		let forkSupported = body.match(`pub const FORK_SUPPORTED_${network.toUpperCase()}: u64 = (\\d+);`)[1];
 
-		request.get({headers: { 'User-Agent': 'ethcore/parity' }, url: `https://raw.githubusercontent.com/ethcore/parity/${commit}/Cargo.toml`}, function (error, response, body) {
-			let version = body.match(/version = "([0-9]+)\.([0-9]+)\.([0-9]+)"/).slice(1);
-			let semver = +version[0] * 65536 + +version[1] * 256 + +version[2];
+		request.get({headers: { 'User-Agent': 'ethcore/parity' }, url: `https://raw.githubusercontent.com/ethcore/parity/${commit}/util/src/misc.rs`}, function (error, response, body) {
 
-			api.parity.registryAddress().then(a =>
-				api.newContract(RegistrarABI, a).instance.getAddress.call({}, [api.util.sha3('parityoperations'), 'A'])
-			).then(a => {
-				console.log(`Registering release: 0x000000000000000000000000${commit}, ${forkSupported}, ${tracks[track]}, ${semver}, ${isCritical}`);
-				// Should be this...
-//				api.newContract(OperationsABI, a).instance.addRelease.postTransaction({from: account.address}, [`0x000000000000000000000000${commit}`, forkSupported, tracks[track], semver, isCritical])
-				// ...but will have to be this for now...
-				return sendTransaction(OperationsABI, a, 'addRelease', [`0x000000000000000000000000${commit}`, forkSupported, tracks[track], semver, isCritical]);
+			let branch = body.match(`const THIS_TRACK: &'static str = "([a-z]*)";`)[1];
+			let track = tracks[branch] ? branch : 'testing';
+			out = `RELEASE: ${commit}/${track}/${branch}/${forkSupported}`;
+		   	console.log(out);
+
+			request.get({headers: { 'User-Agent': 'ethcore/parity' }, url: `https://raw.githubusercontent.com/ethcore/parity/${commit}/Cargo.toml`}, function (error, response, body) {
+				let version = body.match(/version = "([0-9]+)\.([0-9]+)\.([0-9]+)"/).slice(1);
+				let semver = +version[0] * 65536 + +version[1] * 256 + +version[2];
+
+				api.parity.registryAddress().then(a =>
+					api.newContract(RegistrarABI, a).instance.getAddress.call({}, [api.util.sha3('parityoperations'), 'A'])
+				).then(a => {
+					console.log(`Registering release: 0x000000000000000000000000${commit}, ${forkSupported}, ${tracks[track]}, ${semver}, ${isCritical}`);
+					// Should be this...
+	//				api.newContract(OperationsABI, a).instance.addRelease.postTransaction({from: account.address}, [`0x000000000000000000000000${commit}`, forkSupported, tracks[track], semver, isCritical])
+					// ...but will have to be this for now...
+					return sendTransaction(OperationsABI, a, 'addRelease', [`0x000000000000000000000000${commit}`, forkSupported, tracks[track], semver, isCritical]);
+				})
 			})
 		})
 	})
@@ -86,15 +91,13 @@ app.post('/push-build/:branch/:platform', function (req, res) {
 	if (keccak_256(req.body.secret) != tokenHash)
 		res.end("Bad request.");
 
-	let branch = req.params.branch;
 	let platform = req.params.platform;
 	let commit = req.body.commit;
 	let filename = req.body.filename;
 	let sha3 = req.body.sha3;
-	let track = tracks[branch] ? branch : 'testing';
-	let url = `${baseUrl}/${branch}/${platform}/${filename}`;
+	let url = `${baseUrl}/${platform}/${filename}`;
 
-	let out = `BUILD: ${branch}/${platform}/${commit} -> ${sha3}/${filename} [${url}, ${track}]`;
+	let out = `BUILD: ${platform}/${commit} -> ${sha3}/${filename} [${url}, ${track}]`;
 	console.log(out);
 
 	var reg;
