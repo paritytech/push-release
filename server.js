@@ -19,7 +19,12 @@ const tracks = {
 	testing: 4
 };
 
-const account = {address: '0x4d6Bb4ed029B33cF25D0810b029bd8B1A6bcAb7B', password: null};
+const enabled = {
+    stable: true,
+    beta: true
+};
+
+const account = {address: '0x0066AC7A4608f350BF9a0323D60dDe211Dfb27c0', password: null};
 const baseUrl = 'http://d1h4xl4cr1h0mo.cloudfront.net';
 const tokenHash = 'ffa69b8d6bc6f7466e51ff21931295be5d5234dafc5f3ff034f68d59918744c4';
 
@@ -56,32 +61,34 @@ app.post('/push-release/:branch/:commit', function (req, res) {
 
 	var out;
 
-	request.get({headers: { 'User-Agent': 'ethcore/parity' }, url: `https://raw.githubusercontent.com/ethcore/parity/${commit}/ethcore/src/ethereum/mod.rs`}, function (error, response, body) {
+	request.get({headers: { 'User-Agent': 'ethcore/parity' }, url: `https://raw.githubusercontent.com/ethcore/parity/${commit}/util/src/misc.rs`}, function (error, response, body) {
+		let branch = body.match(`const THIS_TRACK: &'static str = "([a-z]*)";`)[1];
+		let track = tracks[branch] ? branch : 'testing';
 
-		let forkSupported = body.match(`pub const FORK_SUPPORTED_${network.toUpperCase()}: u64 = (\\d+);`)[1];
+		if (enabled[track]) {
 
-		request.get({headers: { 'User-Agent': 'ethcore/parity' }, url: `https://raw.githubusercontent.com/ethcore/parity/${commit}/util/src/misc.rs`}, function (error, response, body) {
+			request.get({headers: { 'User-Agent': 'ethcore/parity' }, url: `https://raw.githubusercontent.com/ethcore/parity/${commit}/ethcore/src/ethereum/mod.rs`}, function (error, response, body) {
+				let forkSupported = body.match(`pub const FORK_SUPPORTED_${network.toUpperCase()}: u64 = (\\d+);`)[1];
 
-			let branch = body.match(`const THIS_TRACK: &'static str = "([a-z]*)";`)[1];
-			let track = tracks[branch] ? branch : 'testing';
-			out = `RELEASE: ${commit}/${track}/${branch}/${forkSupported}`;
-		   	console.log(out);
+				out = `RELEASE: ${commit}/${track}/${branch}/${forkSupported}`;
+			   	console.log(out);
 
-			request.get({headers: { 'User-Agent': 'ethcore/parity' }, url: `https://raw.githubusercontent.com/ethcore/parity/${commit}/Cargo.toml`}, function (error, response, body) {
-				let version = body.match(/version = "([0-9]+)\.([0-9]+)\.([0-9]+)"/).slice(1);
-				let semver = +version[0] * 65536 + +version[1] * 256 + +version[2];
+				request.get({headers: { 'User-Agent': 'ethcore/parity' }, url: `https://raw.githubusercontent.com/ethcore/parity/${commit}/Cargo.toml`}, function (error, response, body) {
+					let version = body.match(/version = "([0-9]+)\.([0-9]+)\.([0-9]+)"/).slice(1);
+					let semver = +version[0] * 65536 + +version[1] * 256 + +version[2];
 
-				api.parity.registryAddress().then(a =>
-					api.newContract(RegistrarABI, a).instance.getAddress.call({}, [api.util.sha3('parityoperations'), 'A'])
-				).then(a => {
-					console.log(`Registering release: 0x000000000000000000000000${commit}, ${forkSupported}, ${tracks[track]}, ${semver}, ${isCritical}`);
-					// Should be this...
-	//				api.newContract(OperationsABI, a).instance.addRelease.postTransaction({from: account.address}, [`0x000000000000000000000000${commit}`, forkSupported, tracks[track], semver, isCritical])
-					// ...but will have to be this for now...
-					return sendTransaction(OperationsABI, a, 'addRelease', [`0x000000000000000000000000${commit}`, forkSupported, tracks[track], semver, isCritical]);
+					api.parity.registryAddress().then(a =>
+						api.newContract(RegistrarABI, a).instance.getAddress.call({}, [api.util.sha3('parityoperations'), 'A'])
+					).then(a => {
+						console.log(`Registering release: 0x000000000000000000000000${commit}, ${forkSupported}, ${tracks[track]}, ${semver}, ${isCritical}`);
+						// Should be this...
+		//				api.newContract(OperationsABI, a).instance.addRelease.postTransaction({from: account.address}, [`0x000000000000000000000000${commit}`, forkSupported, tracks[track], semver, isCritical])
+						// ...but will have to be this for now...
+						return sendTransaction(OperationsABI, a, 'addRelease', [`0x000000000000000000000000${commit}`, forkSupported, tracks[track], semver, isCritical]);
+					})
 				})
 			})
-		})
+		}
 	})
 
 	res.end(out);
