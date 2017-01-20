@@ -127,11 +127,11 @@ app.post('/push-build/:branch/:platform', function (req, res) {
 //		api.newContract(GitHubHintABI, g).instance.hintURL.postTransaction({from: account.address}, [`0x${sha3}`, url]).then(() => {
 		// ...but will have to be this for now...
 		return sendTransaction(GitHubHintABI, g, 'hintURL', [`0x${sha3}`, url]);
-	}).then(h =>
+	}).then(h => {
 		console.log(`Transaction sent with hash: ${h}`);
 
 		reg.instance.getAddress.call({}, [api.util.sha3('parityoperations'), 'A'])
-	).then(o => {
+	}).then(o => {
 		console.log(`Registering platform binary: ${commit}, ${platform}, ${sha3}`);
 		// Should be this...
 //		return api.newContract(OperationsABI, o).instance.addChecksum.postTransaction({from: account.address}, [`0x000000000000000000000000${commit}`, platform, `0x${sha3}`]);
