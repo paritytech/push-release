@@ -29,7 +29,7 @@ const baseUrl = 'http://d1h4xl4cr1h0mo.cloudfront.net';
 const tokenHash = 'ffa69b8d6bc6f7466e51ff21931295be5d5234dafc5f3ff034f68d59918744c4';
 
 var network;
-api.parity.netChain().then(n => { network = (n == 'homestead' ? 'mainnet' : n); });
+api.parity.netChain().then(n => { network = (n == 'homestead' || n == 'mainnet' ? 'frontier' : n); });
 
 function sendTransaction(abi, address, method, args) {
 	let o = api.newContract(abi, address);
@@ -60,18 +60,26 @@ app.post('/push-release/:branch/:commit', function (req, res) {
 	let isCritical = false;		// TODO: should take from Git release notes for stable/beta.
 
 	var out;
+	console.log(`Pushing commit: ${commit}`);
 
 	request.get({headers: { 'User-Agent': 'ethcore/parity' }, url: `https://raw.githubusercontent.com/ethcore/parity/${commit}/util/src/misc.rs`}, function (error, response, body) {
-		let branch = body.match(`const THIS_TRACK: &'static str = "([a-z]*)";`)[1];
+		let branch = body.match(`const THIS_TRACK. ..static str = "([a-z]*)";`)[1];
 		let track = tracks[branch] ? branch : 'testing';
+		console.log(`Track: ${branch} => ${track} (${tracks[track]}) [enabled: ${enabled[track]}]`);
 
 		if (enabled[track]) {
 
 			request.get({headers: { 'User-Agent': 'ethcore/parity' }, url: `https://raw.githubusercontent.com/ethcore/parity/${commit}/ethcore/src/ethereum/mod.rs`}, function (error, response, body) {
-				let forkSupported = body.match(`pub const FORK_SUPPORTED_${network.toUpperCase()}: u64 = (\\d+);`)[1];
+				let pattern = `pub const FORK_SUPPORTED_${network.toUpperCase()}: u64 = (\\d+);`;
+				let m = body.match(pattern);
+				if (m === null) {
+					console.log(`Unable to detect supported fork with pattern: ${pattern}.`);
+					return;
+				}
+				let forkSupported = m[1];
 
 				out = `RELEASE: ${commit}/${track}/${branch}/${forkSupported}`;
-			   	console.log(out);
+			   	console.log(`Fork supported: ${forkSupported}`);
 
 				request.get({headers: { 'User-Agent': 'ethcore/parity' }, url: `https://raw.githubusercontent.com/ethcore/parity/${commit}/Cargo.toml`}, function (error, response, body) {
 					let version = body.match(/version = "([0-9]+)\.([0-9]+)\.([0-9]+)"/).slice(1);
@@ -85,7 +93,9 @@ app.post('/push-release/:branch/:commit', function (req, res) {
 		//				api.newContract(OperationsABI, a).instance.addRelease.postTransaction({from: account.address}, [`0x000000000000000000000000${commit}`, forkSupported, tracks[track], semver, isCritical])
 						// ...but will have to be this for now...
 						return sendTransaction(OperationsABI, a, 'addRelease', [`0x000000000000000000000000${commit}`, forkSupported, tracks[track], semver, isCritical]);
-					})
+					}).then(h => {
+						console.log(`Transaction sent with hash: ${h}`);
+					});
 				})
 			})
 		}
@@ -104,7 +114,7 @@ app.post('/push-build/:branch/:platform', function (req, res) {
 	let sha3 = req.body.sha3;
 	let url = `${baseUrl}/${platform}/${filename}`;
 
-	let out = `BUILD: ${platform}/${commit} -> ${sha3}/${filename} [${url}, ${track}]`;
+	let out = `BUILD: ${platform}/${commit} -> ${sha3}/${filename} [${url}]`;
 	console.log(out);
 
 	var reg;
@@ -117,7 +127,9 @@ app.post('/push-build/:branch/:platform', function (req, res) {
 //		api.newContract(GitHubHintABI, g).instance.hintURL.postTransaction({from: account.address}, [`0x${sha3}`, url]).then(() => {
 		// ...but will have to be this for now...
 		return sendTransaction(GitHubHintABI, g, 'hintURL', [`0x${sha3}`, url]);
-	}).then(() =>
+	}).then(h =>
+		console.log(`Transaction sent with hash: ${h}`);
+
 		reg.instance.getAddress.call({}, [api.util.sha3('parityoperations'), 'A'])
 	).then(o => {
 		console.log(`Registering platform binary: ${commit}, ${platform}, ${sha3}`);
@@ -125,7 +137,9 @@ app.post('/push-build/:branch/:platform', function (req, res) {
 //		return api.newContract(OperationsABI, o).instance.addChecksum.postTransaction({from: account.address}, [`0x000000000000000000000000${commit}`, platform, `0x${sha3}`]);
 		// ...but will have to be this for now...
 		return sendTransaction(OperationsABI, o, 'addChecksum', [`0x000000000000000000000000${commit}`, platform, `0x${sha3}`]);
-	})
+	}).then(h => {
+		console.log(`Transaction sent with hash: ${h}`);
+	});
 
 	res.end(out);
 })
