@@ -130,7 +130,7 @@ app.post('/push-build/:branch/:platform', function (req, res) {
 	}).then(h => {
 		console.log(`Transaction sent with hash: ${h}`);
 
-		reg.instance.getAddress.call({}, [api.util.sha3('parityoperations'), 'A'])
+		return reg.instance.getAddress.call({}, [api.util.sha3('parityoperations'), 'A']);
 	}).then(o => {
 		console.log(`Registering platform binary: ${commit}, ${platform}, ${sha3}`);
 		// Should be this...
