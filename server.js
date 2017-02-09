@@ -117,30 +117,38 @@ app.post('/push-build/:branch/:platform', function (req, res) {
 	let out = `BUILD: ${platform}/${commit} -> ${sha3}/${filename} [${url}]`;
 	console.log(out);
 
-	var reg;
-	api.parity.registryAddress().then(a => {
-		reg = api.newContract(RegistrarABI, a);
-		return reg.instance.getAddress.call({}, [api.util.sha3('githubhint'), 'A']);
-	}).then(g => {
-		console.log(`Registering on GithubHint: ${sha3}, ${url}`);
-		// Should be this...
-//		api.newContract(GitHubHintABI, g).instance.hintURL.postTransaction({from: account.address}, [`0x${sha3}`, url]).then(() => {
-		// ...but will have to be this for now...
-		return sendTransaction(GitHubHintABI, g, 'hintURL', [`0x${sha3}`, url]);
-	}).then(h => {
-		console.log(`Transaction sent with hash: ${h}`);
+	request.get({headers: { 'User-Agent': 'ethcore/parity' }, url: `https://raw.githubusercontent.com/ethcore/parity/${commit}/util/src/misc.rs`}, function (error, response, body) {
+		let branch = body.match(`const THIS_TRACK. ..static str = "([a-z]*)";`)[1];
+		let track = tracks[branch] ? branch : 'testing';
+		console.log(`Track: ${branch} => ${track} (${tracks[track]}) [enabled: ${!!enabled[track]}]`);
 
-		return reg.instance.getAddress.call({}, [api.util.sha3('parityoperations'), 'A']);
-	}).then(o => {
-		console.log(`Registering platform binary: ${commit}, ${platform}, ${sha3}`);
-		// Should be this...
-//		return api.newContract(OperationsABI, o).instance.addChecksum.postTransaction({from: account.address}, [`0x000000000000000000000000${commit}`, platform, `0x${sha3}`]);
-		// ...but will have to be this for now...
-		return sendTransaction(OperationsABI, o, 'addChecksum', [`0x000000000000000000000000${commit}`, platform, `0x${sha3}`]);
-	}).then(h => {
-		console.log(`Transaction sent with hash: ${h}`);
-	});
+		if (enabled[track]) {
 
+			var reg;
+			api.parity.registryAddress().then(a => {
+				reg = api.newContract(RegistrarABI, a);
+				return reg.instance.getAddress.call({}, [api.util.sha3('githubhint'), 'A']);
+			}).then(g => {
+				console.log(`Registering on GithubHint: ${sha3}, ${url}`);
+				// Should be this...
+		//		api.newContract(GitHubHintABI, g).instance.hintURL.postTransaction({from: account.address}, [`0x${sha3}`, url]).then(() => {
+				// ...but will have to be this for now...
+				return sendTransaction(GitHubHintABI, g, 'hintURL', [`0x${sha3}`, url]);
+			}).then(h => {
+				console.log(`Transaction sent with hash: ${h}`);
+
+				return reg.instance.getAddress.call({}, [api.util.sha3('parityoperations'), 'A']);
+			}).then(o => {
+				console.log(`Registering platform binary: ${commit}, ${platform}, ${sha3}`);
+				// Should be this...
+		//		return api.newContract(OperationsABI, o).instance.addChecksum.postTransaction({from: account.address}, [`0x000000000000000000000000${commit}`, platform, `0x${sha3}`]);
+				// ...but will have to be this for now...
+				return sendTransaction(OperationsABI, o, 'addChecksum', [`0x000000000000000000000000${commit}`, platform, `0x${sha3}`]);
+			}).then(h => {
+				console.log(`Transaction sent with hash: ${h}`);
+			});
+		}
+	})
 	res.end(out);
 })
 
