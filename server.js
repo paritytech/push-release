@@ -104,17 +104,18 @@ app.post('/push-release/:branch/:commit', function (req, res) {
 	res.end(out);
 })
 
-app.post('/push-build/:branch/:platform', function (req, res) {
+app.post('/push-build/:tag/:platform', function (req, res) {
 	if (keccak_256(req.body.secret) != tokenHash)
 		res.end("Bad request.");
 
+	let tag = req.params.branch;
 	let platform = req.params.platform;
 	let commit = req.body.commit;
 	let filename = req.body.filename;
 	let sha3 = req.body.sha3;
-	let url = `${baseUrl}/${platform}/${filename}`;
+	let url = `${baseUrl}/${tag}/${platform}/${filename}`;
 
-	let out = `BUILD: ${platform}/${commit} -> ${sha3}/${filename} [${url}]`;
+	let out = `BUILD: ${platform}/${commit} -> ${sha3}/${tag}/${filename} [${url}]`;
 	console.log(out);
 
 	request.get({headers: { 'User-Agent': 'ethcore/parity' }, url: `https://raw.githubusercontent.com/ethcore/parity/${commit}/util/src/misc.rs`}, function (error, response, body) {
