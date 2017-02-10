@@ -52,15 +52,16 @@ function sendTransaction(abi, address, method, args) {
 	});
 }
 */
-app.post('/push-release/:branch/:commit', function (req, res) {
+app.post('/push-release/:tag/:commit', function (req, res) {
 	if (keccak_256(req.body.secret) != tokenHash)
 		res.end("Bad request.");
 
 	let commit = req.params.commit;
+	let tag = req.params.tag;
 	let isCritical = false;		// TODO: should take from Git release notes for stable/beta.
 
 	var out;
-	console.log(`Pushing commit: ${commit}`);
+	console.log(`Pushing commit: ${commit} (tag: ${tag})`);
 
 	request.get({headers: { 'User-Agent': 'ethcore/parity' }, url: `https://raw.githubusercontent.com/ethcore/parity/${commit}/util/src/misc.rs`}, function (error, response, body) {
 		let branch = body.match(`const THIS_TRACK. ..static str = "([a-z]*)";`)[1];
@@ -108,7 +109,7 @@ app.post('/push-build/:tag/:platform', function (req, res) {
 	if (keccak_256(req.body.secret) != tokenHash)
 		res.end("Bad request.");
 
-	let tag = req.params.branch;
+	let tag = req.params.tag;
 	let platform = req.params.platform;
 	let commit = req.body.commit;
 	let filename = req.body.filename;
