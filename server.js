@@ -31,6 +31,12 @@ const tokenHash = 'ffa69b8d6bc6f7466e51ff21931295be5d5234dafc5f3ff034f68d5991874
 var network;
 api.parity.netChain().then(n => { network = (n == 'homestead' || n == 'mainnet' ? 'frontier' : n); });
 
+const supportedPlatforms = {
+	"x86_64-apple-darwin": true,
+	"x86_64-pc-windows-msvc": true,
+	"x86_64-unknown-linux-gnu": true
+};
+
 function sendTransaction(abi, address, method, args) {
 	let o = api.newContract(abi, address);
 	let tx = {
@@ -59,49 +65,51 @@ app.post('/push-release/:tag/:commit', function (req, res) {
 	let commit = req.params.commit;
 	let tag = req.params.tag;
 	let isCritical = false;		// TODO: should take from Git release notes for stable/beta.
+	let goodTag = (tag === 'nightly' || tag.startsWith('v'));
 
 	var out;
-	console.log(`Pushing commit: ${commit} (tag: ${tag})`);
+	console.log(`Pushing commit: ${commit} (tag: ${tag}/${goodTag})`);
+	
+	if (goodTag) {
+		request.get({headers: { 'User-Agent': 'ethcore/parity' }, url: `https://raw.githubusercontent.com/ethcore/parity/${commit}/util/src/misc.rs`}, function (error, response, body) {
+			let branch = body.match(`const THIS_TRACK. ..static str = "([a-z]*)";`)[1];
+			let track = tracks[branch] ? branch : 'testing';
+			console.log(`Track: ${branch} => ${track} (${tracks[track]}) [enabled: ${enabled[track]}]`);
 
-	request.get({headers: { 'User-Agent': 'ethcore/parity' }, url: `https://raw.githubusercontent.com/ethcore/parity/${commit}/util/src/misc.rs`}, function (error, response, body) {
-		let branch = body.match(`const THIS_TRACK. ..static str = "([a-z]*)";`)[1];
-		let track = tracks[branch] ? branch : 'testing';
-		console.log(`Track: ${branch} => ${track} (${tracks[track]}) [enabled: ${enabled[track]}]`);
+			if (enabled[track]) {
 
-		if (enabled[track]) {
+				request.get({headers: { 'User-Agent': 'ethcore/parity' }, url: `https://raw.githubusercontent.com/ethcore/parity/${commit}/ethcore/src/ethereum/mod.rs`}, function (error, response, body) {
+					let pattern = `pub const FORK_SUPPORTED_${network.toUpperCase()}: u64 = (\\d+);`;
+					let m = body.match(pattern);
+					if (m === null) {
+						console.log(`Unable to detect supported fork with pattern: ${pattern}.`);
+						return;
+					}
+					let forkSupported = m[1];
 
-			request.get({headers: { 'User-Agent': 'ethcore/parity' }, url: `https://raw.githubusercontent.com/ethcore/parity/${commit}/ethcore/src/ethereum/mod.rs`}, function (error, response, body) {
-				let pattern = `pub const FORK_SUPPORTED_${network.toUpperCase()}: u64 = (\\d+);`;
-				let m = body.match(pattern);
-				if (m === null) {
-					console.log(`Unable to detect supported fork with pattern: ${pattern}.`);
-					return;
-				}
-				let forkSupported = m[1];
+					out = `RELEASE: ${commit}/${track}/${branch}/${forkSupported}`;
+				   	console.log(`Fork supported: ${forkSupported}`);
 
-				out = `RELEASE: ${commit}/${track}/${branch}/${forkSupported}`;
-			   	console.log(`Fork supported: ${forkSupported}`);
+					request.get({headers: { 'User-Agent': 'ethcore/parity' }, url: `https://raw.githubusercontent.com/ethcore/parity/${commit}/Cargo.toml`}, function (error, response, body) {
+						let version = body.match(/version = "([0-9]+)\.([0-9]+)\.([0-9]+)"/).slice(1);
+						let semver = +version[0] * 65536 + +version[1] * 256 + +version[2];
 
-				request.get({headers: { 'User-Agent': 'ethcore/parity' }, url: `https://raw.githubusercontent.com/ethcore/parity/${commit}/Cargo.toml`}, function (error, response, body) {
-					let version = body.match(/version = "([0-9]+)\.([0-9]+)\.([0-9]+)"/).slice(1);
-					let semver = +version[0] * 65536 + +version[1] * 256 + +version[2];
-
-					api.parity.registryAddress().then(a =>
-						api.newContract(RegistrarABI, a).instance.getAddress.call({}, [api.util.sha3('parityoperations'), 'A'])
-					).then(a => {
-						console.log(`Registering release: 0x000000000000000000000000${commit}, ${forkSupported}, ${tracks[track]}, ${semver}, ${isCritical}`);
-						// Should be this...
-		//				api.newContract(OperationsABI, a).instance.addRelease.postTransaction({from: account.address}, [`0x000000000000000000000000${commit}`, forkSupported, tracks[track], semver, isCritical])
-						// ...but will have to be this for now...
-						return sendTransaction(OperationsABI, a, 'addRelease', [`0x000000000000000000000000${commit}`, forkSupported, tracks[track], semver, isCritical]);
-					}).then(h => {
-						console.log(`Transaction sent with hash: ${h}`);
-					});
+						api.parity.registryAddress().then(a =>
+							api.newContract(RegistrarABI, a).instance.getAddress.call({}, [api.util.sha3('parityoperations'), 'A'])
+						).then(a => {
+							console.log(`Registering release: 0x000000000000000000000000${commit}, ${forkSupported}, ${tracks[track]}, ${semver}, ${isCritical}`);
+							// Should be this...
+			//				api.newContract(OperationsABI, a).instance.addRelease.postTransaction({from: account.address}, [`0x000000000000000000000000${commit}`, forkSupported, tracks[track], semver, isCritical])
+							// ...but will have to be this for now...
+							return sendTransaction(OperationsABI, a, 'addRelease', [`0x000000000000000000000000${commit}`, forkSupported, tracks[track], semver, isCritical]);
+						}).then(h => {
+							console.log(`Transaction sent with hash: ${h}`);
+						});
+					})
 				})
-			})
-		}
-	})
-
+			}
+		})
+	}
 	res.end(out);
 })
 
@@ -115,42 +123,46 @@ app.post('/push-build/:tag/:platform', function (req, res) {
 	let filename = req.body.filename;
 	let sha3 = req.body.sha3;
 	let url = `${baseUrl}/${tag}/${platform}/${filename}`;
+	let goodTag = (tag === 'nightly' || tag.startsWith('v'));
+	let goodPlatform = !!supportedPlatforms[platform];
 
-	let out = `BUILD: ${platform}/${commit} -> ${sha3}/${tag}/${filename} [${url}]`;
+	let out = `BUILD: ${platform}/${commit} -> ${sha3}/${tag}/${filename}/${goodTag}/${goodPlatform} [${url}]`;
 	console.log(out);
 
-	request.get({headers: { 'User-Agent': 'ethcore/parity' }, url: `https://raw.githubusercontent.com/ethcore/parity/${commit}/util/src/misc.rs`}, function (error, response, body) {
-		let branch = body.match(`const THIS_TRACK. ..static str = "([a-z]*)";`)[1];
-		let track = tracks[branch] ? branch : 'testing';
-		console.log(`Track: ${branch} => ${track} (${tracks[track]}) [enabled: ${!!enabled[track]}]`);
+	if (sha3 !== '' && goodTag && goodPlatform) {
+		request.get({headers: { 'User-Agent': 'ethcore/parity' }, url: `https://raw.githubusercontent.com/ethcore/parity/${commit}/util/src/misc.rs`}, function (error, response, body) {
+			let branch = body.match(`const THIS_TRACK. ..static str = "([a-z]*)";`)[1];
+			let track = tracks[branch] ? branch : 'testing';
+			console.log(`Track: ${branch} => ${track} (${tracks[track]}) [enabled: ${!!enabled[track]}]`);
 
-		if (enabled[track]) {
+			if (enabled[track]) {
 
-			var reg;
-			api.parity.registryAddress().then(a => {
-				reg = api.newContract(RegistrarABI, a);
-				return reg.instance.getAddress.call({}, [api.util.sha3('githubhint'), 'A']);
-			}).then(g => {
-				console.log(`Registering on GithubHint: ${sha3}, ${url}`);
-				// Should be this...
-		//		api.newContract(GitHubHintABI, g).instance.hintURL.postTransaction({from: account.address}, [`0x${sha3}`, url]).then(() => {
-				// ...but will have to be this for now...
-				return sendTransaction(GitHubHintABI, g, 'hintURL', [`0x${sha3}`, url]);
-			}).then(h => {
-				console.log(`Transaction sent with hash: ${h}`);
+				var reg;
+				api.parity.registryAddress().then(a => {
+					reg = api.newContract(RegistrarABI, a);
+					return reg.instance.getAddress.call({}, [api.util.sha3('githubhint'), 'A']);
+				}).then(g => {
+					console.log(`Registering on GithubHint: ${sha3}, ${url}`);
+					// Should be this...
+			//		api.newContract(GitHubHintABI, g).instance.hintURL.postTransaction({from: account.address}, [`0x${sha3}`, url]).then(() => {
+					// ...but will have to be this for now...
+					return sendTransaction(GitHubHintABI, g, 'hintURL', [`0x${sha3}`, url]);
+				}).then(h => {
+					console.log(`Transaction sent with hash: ${h}`);
 
-				return reg.instance.getAddress.call({}, [api.util.sha3('parityoperations'), 'A']);
-			}).then(o => {
-				console.log(`Registering platform binary: ${commit}, ${platform}, ${sha3}`);
-				// Should be this...
-		//		return api.newContract(OperationsABI, o).instance.addChecksum.postTransaction({from: account.address}, [`0x000000000000000000000000${commit}`, platform, `0x${sha3}`]);
-				// ...but will have to be this for now...
-				return sendTransaction(OperationsABI, o, 'addChecksum', [`0x000000000000000000000000${commit}`, platform, `0x${sha3}`]);
-			}).then(h => {
-				console.log(`Transaction sent with hash: ${h}`);
-			});
-		}
-	})
+					return reg.instance.getAddress.call({}, [api.util.sha3('parityoperations'), 'A']);
+				}).then(o => {
+					console.log(`Registering platform binary: ${commit}, ${platform}, ${sha3}`);
+					// Should be this...
+			//		return api.newContract(OperationsABI, o).instance.addChecksum.postTransaction({from: account.address}, [`0x000000000000000000000000${commit}`, platform, `0x${sha3}`]);
+					// ...but will have to be this for now...
+					return sendTransaction(OperationsABI, o, 'addChecksum', [`0x000000000000000000000000${commit}`, platform, `0x${sha3}`]);
+				}).then(h => {
+					console.log(`Transaction sent with hash: ${h}`);
+				});
+			}
+		})
+	}
 	res.end(out);
 })
 
