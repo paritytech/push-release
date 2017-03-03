@@ -29,7 +29,7 @@ const baseUrl = 'http://d1h4xl4cr1h0mo.cloudfront.net';
 const tokenHash = 'ffa69b8d6bc6f7466e51ff21931295be5d5234dafc5f3ff034f68d59918744c4';
 
 var network;
-api.parity.netChain().then(n => { network = (n == 'homestead' || n == 'mainnet' ? 'frontier' : n); });
+api.parity.netChain().then(n => { network = (n == 'homestead' || n == 'mainnet' || n == 'foundation' ? 'foundation' : n); });
 
 const supportedPlatforms = {
 	"x86_64-apple-darwin": true,
@@ -69,7 +69,7 @@ app.post('/push-release/:tag/:commit', function (req, res) {
 
 	var out;
 	console.log(`Pushing commit: ${commit} (tag: ${tag}/${goodTag})`);
-	
+
 	if (goodTag) {
 		request.get({headers: { 'User-Agent': 'ethcore/parity' }, url: `https://raw.githubusercontent.com/ethcore/parity/${commit}/util/src/misc.rs`}, function (error, response, body) {
 			let branch = body.match(`const THIS_TRACK. ..static str = "([a-z]*)";`)[1];
