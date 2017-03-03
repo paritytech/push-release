@@ -29,7 +29,7 @@ const baseUrl = 'http://d1h4xl4cr1h0mo.cloudfront.net';
 const tokenHash = 'ffa69b8d6bc6f7466e51ff21931295be5d5234dafc5f3ff034f68d59918744c4';
 
 var network;
-api.parity.netChain().then(n => { network = (n == 'homestead' || n == 'mainnet' || n == 'foundation' ? 'foundation' : n); });
+api.parity.netChain().then(n => { network = (n == 'homestead' || n == 'mainnet' || n == 'foundation' ? 'foundation' : n.indexOf('kovan.json') != -1 ? 'kovan' : n); });
 
 const supportedPlatforms = {
 	"x86_64-apple-darwin": true,
