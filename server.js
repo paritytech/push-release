@@ -71,14 +71,14 @@ app.post('/push-release/:tag/:commit', function (req, res) {
 	console.log(`Pushing commit: ${commit} (tag: ${tag}/${goodTag})`);
 
 	if (goodTag) {
-		request.get({headers: { 'User-Agent': 'ethcore/parity' }, url: `https://raw.githubusercontent.com/ethcore/parity/${commit}/util/src/misc.rs`}, function (error, response, body) {
+		request.get({headers: { 'User-Agent': 'paritytech/parity' }, url: `https://raw.githubusercontent.com/paritytech/parity/${commit}/util/src/misc.rs`}, function (error, response, body) {
 			let branch = body.match(`const THIS_TRACK. ..static str = "([a-z]*)";`)[1];
 			let track = tracks[branch] ? branch : 'testing';
 			console.log(`Track: ${branch} => ${track} (${tracks[track]}) [enabled: ${enabled[track]}]`);
 
 			if (enabled[track]) {
 
-				request.get({headers: { 'User-Agent': 'ethcore/parity' }, url: `https://raw.githubusercontent.com/ethcore/parity/${commit}/ethcore/src/ethereum/mod.rs`}, function (error, response, body) {
+				request.get({headers: { 'User-Agent': 'paritytech/parity' }, url: `https://raw.githubusercontent.com/paritytech/parity/${commit}/ethcore/src/ethereum/mod.rs`}, function (error, response, body) {
 					let pattern = `pub const FORK_SUPPORTED_${network.toUpperCase()}: u64 = (\\d+);`;
 					let m = body.match(pattern);
 					if (m === null) {
@@ -90,7 +90,7 @@ app.post('/push-release/:tag/:commit', function (req, res) {
 					out = `RELEASE: ${commit}/${track}/${branch}/${forkSupported}`;
 				   	console.log(`Fork supported: ${forkSupported}`);
 
-					request.get({headers: { 'User-Agent': 'ethcore/parity' }, url: `https://raw.githubusercontent.com/ethcore/parity/${commit}/Cargo.toml`}, function (error, response, body) {
+					request.get({headers: { 'User-Agent': 'paritytech/parity' }, url: `https://raw.githubusercontent.com/paritytech/parity/${commit}/Cargo.toml`}, function (error, response, body) {
 						let version = body.match(/version = "([0-9]+)\.([0-9]+)\.([0-9]+)"/).slice(1);
 						let semver = +version[0] * 65536 + +version[1] * 256 + +version[2];
 
@@ -130,7 +130,7 @@ app.post('/push-build/:tag/:platform', function (req, res) {
 	console.log(out);
 
 	if (sha3 !== '' && goodTag && goodPlatform) {
-		request.get({headers: { 'User-Agent': 'ethcore/parity' }, url: `https://raw.githubusercontent.com/ethcore/parity/${commit}/util/src/misc.rs`}, function (error, response, body) {
+		request.get({headers: { 'User-Agent': 'paritytech/parity' }, url: `https://raw.githubusercontent.com/paritytech/parity/${commit}/util/src/misc.rs`}, function (error, response, body) {
 			let branch = body.match(`const THIS_TRACK. ..static str = "([a-z]*)";`)[1];
 			let track = tracks[branch] ? branch : 'testing';
 			console.log(`Track: ${branch} => ${track} (${tracks[track]}) [enabled: ${!!enabled[track]}]`);
