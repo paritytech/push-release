@@ -12,6 +12,7 @@ const api = new Parity.Api(transport);
 
 const app = express();
 app.use(bodyParser.urlencoded({extended: true}));
+module.exports = app;
 
 const reduceObject = (obj, prop) => ({ ...obj, [prop]: true });
 const enabledTracks = config.get('enabledTracks').reduce(reduceObject, {});
@@ -45,7 +46,7 @@ const tracks = {
 
 app.post('/push-release/:tag/:commit', handleAsync(async function (req, res) {
 	if (keccak256(req.body.secret || '') !== secretHash) {
-		throw new Error('Bad request');
+		throw new Error('Invalid secret');
 	}
 	const { commit, tag } = req.params;
 
@@ -61,7 +62,11 @@ app.post('/push-release/:tag/:commit', handleAsync(async function (req, res) {
 	console.log(`Pushing commit: ${commit} (tag: ${tag}/${goodTag})`);
 
 	const miscBody = await fetchFile(commit, '/util/src/misc.rs');
-	const branch = miscBody.match(`const THIS_TRACK. ..static str = "([a-z]*)";`)[1];
+	const branch = match(
+		miscBody,
+		/const THIS_TRACK. ..static str = "([a-z]*)";/,
+		'Unable to detect track'
+	)[1];
 	const track = tracks[branch] ? branch : 'testing';
 	console.log(`Track: ${branch} => ${track} (${tracks[track]}) [enabled: ${enabledTracks[track]}]`);
 
@@ -71,24 +76,24 @@ app.post('/push-release/:tag/:commit', handleAsync(async function (req, res) {
 
 	let ethereumMod = await fetchFile(commit, '/ethcore/src/ethereum/mod.rs');
 	const network = await getNetwork();
-	const pattern = `pub const FORK_SUPPORTED_${network.toUpperCase()}: u64 = (\\d+);`;
-	const m = ethereumMod.match(pattern);
-	if (m === null) {
-		throw new Error(`Unable to detect supported fork with pattern: ${pattern}.`);
-	}
-
-	const forkSupported = m[1];
-
-	// Return a response already.
-	res.send(`RELEASE: ${commit}/${track}/${branch}/${forkSupported}`);
+	const forkSupported = match(
+		ethereumMod,
+		`pub const FORK_SUPPORTED_${network.toUpperCase()}: u64 = (\\d+);`,
+		'Unable to detect supported fork'
+	)[1];
 
 	console.log(`Fork supported: ${forkSupported}`);
 
-	let cargoToml = await fetchFile(commit, 'Cargo.toml');
-	const version = cargoToml.match(/version = "([0-9]+)\.([0-9]+)\.([0-9]+)"/).slice(1);
-	const semver = +version[0] * 65536 + +version[1] * 256 + +version[2];
+	const cargoToml = await fetchFile(commit, '/Cargo.toml');
+	const versionMatch = match(
+		cargoToml,
+		/version = "([0-9]+)\.([0-9]+)\.([0-9]+)"/,
+		'Unable to detect version'
+	);
+	const [major, minor, patch] = versionMatch.slice(1).map(x => parseInt(x, 10));
+	const semver = major * 65536 + minor * 256 + patch;
 
-	console.log(`Version: ${version.join('.')} = ${semver}`);
+	console.log(`Version: ${versionMatch.join('.')} = ${semver}`);
 
 	const registryAddress = await api.parity.registryAddress();
 	console.log(`Registry address: ${registryAddress}`);
@@ -97,16 +102,16 @@ app.post('/push-release/:tag/:commit', handleAsync(async function (req, res) {
 	const operationsAddress = await registry.instance.getAddress.call({}, [operationsContract, 'A']);
 	console.log(`Parity operations address: ${operationsAddress}`);
 	console.log(`Registering release: 0x000000000000000000000000${commit}, ${forkSupported}, ${tracks[track]}, ${semver}, ${isCritical}`);
-	// Should be this...
-	// api.newContract(OperationsABI, a).instance.addRelease.postTransaction({from: account.address}, [`0x000000000000000000000000${commit}`, forkSupported, tracks[track], semver, isCritical])
-	// ...but will have to be this for now...
 	const hash = await sendTransaction(OperationsABI, operationsAddress, 'addRelease', [`0x000000000000000000000000${commit}`, forkSupported, tracks[track], semver, isCritical]);
 	console.log(`Transaction sent with hash: ${hash}`);
+
+	// Return the response
+	res.send(`RELEASE: ${commit}/${track}/${branch}/${forkSupported}`);
 }));
 
 app.post('/push-build/:tag/:platform', handleAsync(async function (req, res) {
 	if (keccak256(req.body.secret || '') !== secretHash) {
-		throw new Error('Bad request');
+		throw new Error('Invalid secret');
 	}
 
 	const { tag, platform } = req.params;
@@ -124,8 +129,12 @@ app.post('/push-build/:tag/:platform', handleAsync(async function (req, res) {
 		throw new Error(`Invalid sha3 (${sha3}), tag (${tag}) or platform (${platform}).`);
 	}
 
-	let body = await fetchFile(commit, '/util/src/misc.rs');
-	const branch = body.match(`const THIS_TRACK. ..static str = "([a-z]*)";`)[1];
+	const body = await fetchFile(commit, '/util/src/misc.rs');
+	const branch = match(
+		body,
+		/const THIS_TRACK. ..static str = "([a-z]*)"/,
+		'Unable to detect track'
+	)[1];
 	const track = tracks[branch] ? branch : 'testing';
 
 	console.log(`Track: ${branch} => ${track} (${tracks[track]}) [enabled: ${!!enabledTracks[track]}]`);
@@ -136,34 +145,32 @@ app.post('/push-build/:tag/:platform', handleAsync(async function (req, res) {
 
 	// make sure the node is running
 	await getNetwork();
-	// Respond already
-	res.send(out);
 
 	const registryAddress = await api.parity.registryAddress();
 	const reg = api.newContract(RegistrarABI, registryAddress);
 	const githubHintAddress = await reg.instance.getAddress.call({}, [githubHint, 'A']);
 
 	console.log(`Registering on GithubHint: ${sha3}, ${url}`);
-	// Should be this...
-	// api.newContract(GitHubHintABI, g).instance.hintURL.postTransaction({from: account.address}, [`0x${sha3}`, url]).then(() => {
-	// ...but will have to be this for now...
 	const hash = await sendTransaction(GitHubHintABI, githubHintAddress, 'hintURL', [`0x${sha3}`, url]);
 	console.log(`Transaction sent with hash: ${hash}`);
 
-	const operationsAddress = reg.instance.getAddress.call({}, [operationsContract, 'A']);
+	const operationsAddress = await reg.instance.getAddress.call({}, [operationsContract, 'A']);
 	console.log(`Registering platform binary: ${commit}, ${platform}, ${sha3}`);
-	// Should be this...
-	// return api.newContract(OperationsABI, o).instance.addChecksum.postTransaction({from: account.address}, [`0x000000000000000000000000${commit}`, platform, `0x${sha3}`]);
-	// ...but will have to be this for now...
 	const hash2 = await sendTransaction(OperationsABI, operationsAddress, 'addChecksum', [`0x000000000000000000000000${commit}`, platform, `0x${sha3}`]);
 	console.log(`Transaction sent with hash: ${hash2}`);
+
+	// Respond already
+	res.send(out);
 }));
 
-const server = app.listen(httpPort, function () {
-	const host = server.address().address;
-	const port = server.address().port;
-	console.log('push-release service listening at http://%s:%s', host, port);
-});
+function match (string, pattern, comment) {
+	const match = string.match(pattern);
+	if (!match) {
+		throw new Error(`${comment} in ${string}`);
+	}
+
+	return match;
+}
 
 function handleAsync (asyncFn) {
 	return (req, res) => asyncFn(req, res)
