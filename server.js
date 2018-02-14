@@ -60,7 +60,7 @@ const baseUrl = config.get('assetsBaseUrl');
 const secretHash = config.get('secretHash');
 const githubRepo = config.get('repository');
 
-const operationsContract = api.util.sha3('parityOperations');
+const operationsContract = api.util.sha3('parityoperations');
 const githubHint = api.util.sha3('githubhint');
 
 const RegistrarABI = require('./res/registrar.json');
@@ -246,19 +246,21 @@ async function getNetwork () {
 	return network;
 }
 
-function sendTransaction (abi, address, method, args) {
+async function sendTransaction (abi, address, method, args) {
 	let o = api.newContract(abi, address);
 	let tx = {
 		from: account.address,
 		to: address,
-		gasPrice: account.gasPrice,
 		data: o.getCallData(o.instance[method], {}, args)
 	};
+	if (account.gasPrice) {
+		tx.gasPrice = account.gasPrice;
+	}
 	console.log('Sending transaction: ', tx);
 
 	const hash = account.password === null
-		? api.eth.sendTransaction(tx)
-		: api.personal.signAndSendTransaction(tx, account.password);
+		? await api.eth.sendTransaction(tx)
+		: await api.personal.signAndSendTransaction(tx, account.password);
 
 	console.log(`Transaction sent with hash: ${hash}`);
 	return hash;
