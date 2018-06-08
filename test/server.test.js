@@ -1,6 +1,7 @@
 const chai = require('chai');
 const chaiHttp = require('chai-http');
 const ServerMock = require('mock-http-server');
+const pad = require('@parity/abi/lib/util/pad')
 
 const expect = chai.expect;
 chai.use(chaiHttp);
@@ -12,9 +13,43 @@ const gasPrice = '0x4f9aca000';
 const server = new ServerMock({ host: 'localhost', port: 8545 });
 
 describe('push-release', () => {
+	async function pushRelease(commit, network, forkBlock, critical) {
+		const requests = [];
+		server.on({
+			method: 'POST',
+			path: '/',
+			reply: {
+				status: 200,
+				headers: {
+					'content-type': 'application/json'
+				},
+				body: parityRespond(requests, network)
+			}
+		});
+
+		let res = await request(app => app
+			.post(`/push-release/v1.7.13/${commit}`)
+			.type('form')
+			.send({ secret })
+		);
+
+		const expectedCritical = critical ? '1' : '0';
+		const expectedForkBlock = pad.padU32(forkBlock);
+
+		expect(res).to.have.status(200);
+		// Register in operations
+		expect(requests[3].method).to.equal('eth_sendTransaction');
+		expect(requests[3].params).to.deep.equal([{
+			data: `0x932ab270000000000000000000000000${commit}${expectedForkBlock}00000000000000000000000000000000000000000000000000000000000000030000000000000000000000000000000000000000000000000000000000010c00000000000000000000000000000000000000000000000000000000000000000${expectedCritical}`,
+			from: '0x0066ac7a4608f350bf9a0323d60dde211dfb27c0',
+			gasPrice,
+			to: '0x0000000000000000bf900003d60dde211dfb0000'
+		}]);
+	}
+
 	it('should reject invalid secret', async () => {
 		let res = await request(app => app
-			.post('/push-release/v1.9.5/8b749367fd5fea897cee98bd892fff1ce90f8260')
+			.post('/push-release/v1.9.5/e92e6c4f796f6338b2a99c499a0fe9c238f2d84f')
 			.type('form')
 			.send({ secret: 'xxx' })
 		);
@@ -26,7 +61,7 @@ describe('push-release', () => {
 	it('should gently reject invalid tags', async () => {
 		const test = async tag => {
 			let res = await request(app => app
-				.post(`/push-release/${tag}/8b749367fd5fea897cee98bd892fff1ce90f8260`)
+				.post(`/push-release/${tag}/e92e6c4f796f6338b2a99c499a0fe9c238f2d84f`)
 				.type('form')
 				.send({ secret })
 			);
@@ -54,32 +89,18 @@ describe('push-release', () => {
 	afterEach(done => server.stop(done));
 
 	it('should push release succesfuly', async () => {
-		const requests = [];
-		server.on({
-			method: 'POST',
-			path: '/',
-			reply: {
-				status: 200,
-				headers: { 'content-type': 'application/json' },
-				body: parityRespond(requests)
-			}
-		});
+		await pushRelease('e92e6c4f796f6338b2a99c499a0fe9c238f2d84f', 'kovan', 6600000, false);
+	});
 
-		let res = await request(app => app
-			.post('/push-release/v1.7.13/c060d9584dae34e0e215f061bd61b2ebd375956b')
-			.type('form')
-			.send({ secret })
-		);
+	it('should use network specific critical flag', async () => {
+		const kovanTrueCommit = 'a70eb0b39f9341c8be900ceb0fd2d007cf9acab8';
+		await pushRelease(kovanTrueCommit, 'kovan', 6600000, true);
+		await pushRelease(kovanTrueCommit, 'ropsten', 10, false);
+	});
 
-		expect(res).to.have.status(200);
-		// Register in operations
-		expect(requests[3].method).to.equal('eth_sendTransaction');
-		expect(requests[3].params).to.deep.equal([{
-			data: '0x932ab270000000000000000000000000c060d9584dae34e0e215f061bd61b2ebd375956b00000000000000000000000000000000000000000000000000000000004d50f800000000000000000000000000000000000000000000000000000000000000030000000000000000000000000000000000000000000000000000000000010a000000000000000000000000000000000000000000000000000000000000000000',
-			from: '0x0066ac7a4608f350bf9a0323d60dde211dfb27c0',
-		gasPrice,
-			to: '0x0000000000000000bf900003d60dde211dfb0000'
-		}]);
+	it('should be backwards compatible with global critical flag', async () => {
+		const legacyCommit = 'adc3457a893bac241c00e897df702e9bbc1468d9';
+		await pushRelease(legacyCommit, 'kovan', 6600000, false);
 	});
 });
 
@@ -91,7 +112,7 @@ describe('push-build', () => {
 			.send({
 				secret: 'xxx',
 				sha3: 'a00ead491c0e47efe4abefeb27ddc6ed8d1ea4daa43683d8e349e1e7459b74ba',
-				commit: '8b749367fd5fea897cee98bd892fff1ce90f8260',
+				commit: 'e92e6c4f796f6338b2a99c499a0fe9c238f2d84f',
 				filename: 'parity'
 			})
 		);
@@ -108,7 +129,7 @@ describe('push-build', () => {
 				.send({
 					secret,
 					sha3: 'a00ead491c0e47efe4abefeb27ddc6ed8d1ea4daa43683d8e349e1e7459b74ba',
-					commit: '8b749367fd5fea897cee98bd892fff1ce90f8260',
+					commit: 'e92e6c4f796f6338b2a99c499a0fe9c238f2d84f',
 					filename: 'parity'
 				})
 			);
@@ -128,7 +149,7 @@ describe('push-build', () => {
 			.send({
 				secret,
 				sha3: 'a00ead491c0e47efe4abefeb27ddc6ed8d1ea4daa43683d8e349e1e7459b74ba',
-				commit: '8b749367fd5fea897cee98bd892fff1ce90f8260',
+				commit: 'e92e6c4f796f6338b2a99c499a0fe9c238f2d84f',
 				filename: 'parity'
 			})
 		);
@@ -144,7 +165,7 @@ describe('push-build', () => {
 			.send({
 				secret,
 				sha3: 'a00ead491c0e47efe4abefeb27ddc6ed8d1ea4daa43683d8e349e1e7459b74ba',
-				// commit: '8b749367fd5fea897cee98bd892fff1ce90f8260',
+				// commit: 'e92e6c4f796f6338b2a99c499a0fe9c238f2d84f',
 				filename: 'parity'
 			})
 		);
@@ -174,7 +195,7 @@ describe('push-build', () => {
 			.send({
 				secret,
 				sha3: 'a00ead491c0e47efe4abefeb27ddc6ed8d1ea4daa43683d8e349e1e7459b74ba',
-				commit: 'c060d9584dae34e0e215f061bd61b2ebd375956b',
+				commit: 'e92e6c4f796f6338b2a99c499a0fe9c238f2d84f',
 				filename: 'parity'
 			})
 		);
@@ -191,7 +212,7 @@ describe('push-build', () => {
 		// Build registration
 		expect(requests[4].method).to.equal('eth_sendTransaction');
 		expect(requests[4].params).to.deep.equal([{
-			data: '0x793b0efb000000000000000000000000c060d9584dae34e0e215f061bd61b2ebd375956b7838365f36342d756e6b6e6f776e2d6c696e75782d676e750000000000000000a00ead491c0e47efe4abefeb27ddc6ed8d1ea4daa43683d8e349e1e7459b74ba',
+			data: '0x793b0efb000000000000000000000000e92e6c4f796f6338b2a99c499a0fe9c238f2d84f7838365f36342d756e6b6e6f776e2d6c696e75782d676e750000000000000000a00ead491c0e47efe4abefeb27ddc6ed8d1ea4daa43683d8e349e1e7459b74ba',
 			from: '0x0066ac7a4608f350bf9a0323d60dde211dfb27c0',
 			gasPrice,
 			to: '0x0000000000000000bf900003d60dde211dfb0000'
@@ -212,7 +233,7 @@ function request (fn) {
 	});
 }
 
-function parityRespond (requests) {
+function parityRespond (requests, chain) {
 	return (req) => {
 		requests.push(req.body);
 
@@ -220,7 +241,7 @@ function parityRespond (requests) {
 		const { method } = req.body;
 
 		if (method === 'parity_chain') {
-			result = 'kovan';
+			result = (chain === undefined) ? 'kovan' : chain;
 		} else if (method === 'parity_registry') {
 			result = '0x0000000000000000000000000000000000001233';
 		} else if (method === 'eth_call') {
